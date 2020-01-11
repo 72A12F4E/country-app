@@ -15,7 +15,7 @@ final class CountriesViewController: UITableViewController {
         case main
     }
     
-    lazy var dataSource = UITableViewDiffableDataSource<Section, Country>(tableView: tableView) { (tableView, indexPath, country) -> UITableViewCell? in
+    private lazy var dataSource = UITableViewDiffableDataSource<Section, Country>(tableView: tableView) { (tableView, indexPath, country) -> UITableViewCell? in
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
         cell.textLabel?.text = country.name
         cell.detailTextLabel?.text = country.nativeName
@@ -23,10 +23,26 @@ final class CountriesViewController: UITableViewController {
         return cell
     }
     
-    var cancellables: Set<AnyCancellable> = []
+    private lazy var searchController: UISearchController = {
+        let controller = UISearchController()
+        controller.searchResultsUpdater = self
+        controller.obscuresBackgroundDuringPresentation = false
+        return controller
+    }()
+    
+    private var cancellables: Set<AnyCancellable> = []
+    
+    @Published private var countries: [Country] = []
+    @Published private var searchText: String = ""
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        navigationItem.title = "Countries"
+        navigationController?.navigationBar.prefersLargeTitles = true
+        navigationItem.largeTitleDisplayMode = .always
+        
+        navigationItem.searchController = searchController
         
         tableView.backgroundColor = .secondarySystemBackground
         dataSource.defaultRowAnimation = .fade
@@ -34,7 +50,16 @@ final class CountriesViewController: UITableViewController {
         CountryAPI.fetchCountries()
             .replaceError(with: [])
             .receive(on: RunLoop.main)
-            .sink { countries in
+            .assign(to: \.countries, on: self)
+            .store(in: &cancellables)
+        
+        Publishers.CombineLatest($countries, $searchText)
+            .map { countries, searchText -> [Country] in
+                guard searchText != "" else { return countries }
+                return countries.filter { country in
+                    country.name.contains(searchText)
+                }
+            }.sink { countries in
                 var snapshot = NSDiffableDataSourceSnapshot<Section, Country>()
                 snapshot.appendSections([.main])
                 snapshot.appendItems(countries, toSection: .main)
@@ -54,3 +79,8 @@ final class CountriesViewController: UITableViewController {
     }
 }
 
+extension CountriesViewController: UISearchResultsUpdating {
+    func updateSearchResults(for searchController: UISearchController) {
+        searchText = searchController.searchBar.text ?? ""
+    }
+}

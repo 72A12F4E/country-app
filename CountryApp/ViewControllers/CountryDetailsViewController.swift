@@ -26,6 +26,12 @@ class CountryDetailsViewController: UITableViewController {
         }
     }
     
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        navigationItem.largeTitleDisplayMode = .never
+    }
+    
     // MARK: - UITableViewDataSource
     
     override func numberOfSections(in tableView: UITableView) -> Int {
